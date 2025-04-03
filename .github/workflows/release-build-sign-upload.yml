@@ -167,6 +167,7 @@ jobs:
         make out/cf-cli_linux_i686
         make out/cf-cli_linux_x86-64
         make out/cf-cli_linux_arm64
+        make out/cf-cli_linux_riscv64
 
     - name: Store Linux Binaries
       uses: actions/upload-artifact@v4
@@ -231,6 +232,20 @@ jobs:
           cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
           rpmbuild --target aarch64 --define "_topdir $(pwd)/build" -bb cf-cli.spec
           mv build/RPMS/aarch64/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_aarch64.rpm
+          popd
+        )
+
+        echo "Build riscv64 RedHat package"
+        (
+          pushd cli-ci/ci/installers/rpm
+          cp $root/out/cf-cli_linux_arm64 cf${VERSION_MAJOR}
+          cp ../../license/NOTICE .
+          cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES LICENSE
+          cp ../completion/cf${VERSION_MAJOR} cf${VERSION_MAJOR}.bash
+          echo "Version: ${RPM_VERSION}" > cf-cli.spec
+          cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
+          rpmbuild --target riscv64 --define "_topdir $(pwd)/build" -bb cf-cli.spec
+          mv build/RPMS/riscv64/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_riscv64.rpm
           popd
         )
 
@@ -362,6 +377,30 @@ jobs:
             ln -frs cf/usr/bin/cf${VERSION_MAJOR} cf/usr/bin/cf
             fakeroot dpkg-deb -Zxz --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_arm64.deb
             mv cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_arm64.deb $root/packaged-deb
+          popd
+        )
+
+        echo "Build riscv64 Debian package"
+        (
+          SIZE="$(BLOCKSIZE=1000 du $root/out/cf-cli_linux_riscv64 | cut -f 1)"
+          pushd cli-ci/ci/installers/deb
+            mkdir -p cf/usr/bin cf/usr/share/doc/cf${VERSION_MAJOR}-cli/ cf/DEBIAN cf/usr/share/bash-completion/completions
+            cp copyright_preamble cf/DEBIAN/copyright
+            sed 's/^$/ ./' $root/LICENSE >> cf/DEBIAN/copyright
+            cat copyright_comment_header >> cf/DEBIAN/copyright
+            sed 's/^$/ ./' ../../license/3RD-PARTY-LICENSES >> cf/DEBIAN/copyright
+            cp cf/DEBIAN/copyright cf/usr/share/doc/cf${VERSION_MAJOR}-cli/copyright
+            cp ../../license/NOTICE cf/usr/share/doc/cf${VERSION_MAJOR}-cli
+            cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES cf/usr/share/doc/cf${VERSION_MAJOR}-cli/LICENSE
+            cp control_v${VERSION_MAJOR}.template cf/DEBIAN/control
+            echo "Installed-Size: ${SIZE}" >> cf/DEBIAN/control
+            echo "Version: ${VERSION_BUILD}" >> cf/DEBIAN/control
+            echo "Architecture: riscv64" >> cf/DEBIAN/control
+            cp ../completion/cf${VERSION_MAJOR} cf/usr/share/bash-completion/completions/cf${VERSION_MAJOR}
+            cp $root/out/cf-cli_linux_riscv64 cf/usr/bin/cf${VERSION_MAJOR}
+            ln -frs cf/usr/bin/cf${VERSION_MAJOR} cf/usr/bin/cf
+            fakeroot dpkg-deb -Zxz --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_riscv64.deb
+            mv cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_riscv64.deb $root/packaged-deb
           popd
         )
 
